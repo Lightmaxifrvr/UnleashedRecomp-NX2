@@ -7,8 +7,7 @@
 #   - devkitPro + devkitA64            (DEVKITPRO, default /opt/devkitpro)
 #     For Switch 2, install libnx-ounce into DEVKITPRO/libounce and set
 #     SWITCH_PLATFORM=ounce.
-#   - MSYS2 CLANGARM64: clang cmake ninja
-#   - MSYS2 CLANG64:    clang          (only for the x64 shader tool; see NOTE)
+#   - MSYS2 CLANG64:    clang cmake ninja (host build tools)
 #
 # Inputs you supply (kept out of the repo):
 #   - Game files in UnleashedRecompLib/private/ : default.xex, default.xexp, shader.ar
@@ -77,14 +76,13 @@ if [ "$SWITCH_PGO" = "generate" ] && [ "$SWITCH_LTO" = "1" ]; then
   exit 2
 fi
 
-CLANGARM64="${CLANGARM64:-/c/msys64/clangarm64/bin}"
 CLANG64="${CLANG64:-/c/msys64/clang64/bin}"
-CMAKE="$CLANGARM64/cmake.exe"
-NINJA="$CLANGARM64/ninja.exe"
+CMAKE="$CLANG64/cmake.exe"
+NINJA="$CLANG64/ninja.exe"
 # The host tools built with that clang (XenonRecomp, x_decompress...) need its runtime DLLs
-# (libc++, libunwind) when they run in steps 4 and 5. A CLANGARM64/CLANG64 shell has them on PATH;
+# (libc++, libunwind) when they run in steps 4 and 5. A CLANG64 shell has them on PATH;
 # an MSYS shell does not, and the tools then exit without a word.
-export PATH="$CLANGARM64:$PATH"
+export PATH="$CLANG64:$PATH"
 PYTHON="${PYTHON:-}"
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -220,9 +218,9 @@ apply_patch thirdparty/concurrentqueue    concurrentqueue.patch
 apply_patch tools/XenonRecomp             XenonRecomp.patch
 apply_patch tools/XenosRecomp             XenosRecomp-mingw-dxc.patch XenosRecomp-switch-perf.patch
 
-# --------------------------------------------------- 2. host tools (arm64, native)
-log "2/7 build host tools (arm64)"
-CC="$CLANGARM64/clang.exe" CXX="$CLANGARM64/clang++.exe" \
+# --------------------------------------------------- 2. host tools (x64, native)
+log "2/7 build host tools (x64)"
+CC="$CLANG64/clang.exe" CXX="$CLANG64/clang++.exe" \
 "$CMAKE" -S . -B build/host-tools -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DUNLEASHED_RECOMP_HOST_TOOLS_ONLY=ON -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
   -DCMAKE_CXX_FLAGS="-include cstdlib -include cstdio" -DCMAKE_MAKE_PROGRAM="$NINJA"
