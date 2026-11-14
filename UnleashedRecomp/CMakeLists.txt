@@ -483,7 +483,10 @@ target_link_libraries(UnleashedRecomp PRIVATE
 )
 
 if (UNLEASHED_RECOMP_SWITCH)
-    target_link_libraries(UnleashedRecomp PRIVATE nx)
+    if (NOT DEFINED UNLEASHED_RECOMP_SWITCH_RUNTIME_LIBRARY)
+        set(UNLEASHED_RECOMP_SWITCH_RUNTIME_LIBRARY nx)
+    endif()
+    target_link_libraries(UnleashedRecomp PRIVATE ${UNLEASHED_RECOMP_SWITCH_RUNTIME_LIBRARY})
 
     # The build ID main.cpp prints first in stderr.log, as a generated header (a -D would not match the
     # precompiled header). Rewritten only when it changes.

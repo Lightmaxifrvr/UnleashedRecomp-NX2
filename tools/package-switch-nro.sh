@@ -3,6 +3,7 @@
 # res/version.txt) + strip + elf2nro (with the app icon). Safe to re-run.
 set -euo pipefail
 : "${DEVKITPRO:=/opt/devkitpro}"
+: "${SWITCH_RUNTIME_ROOT:=${DEVKITPRO}/libnx}"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root_dir"
 
@@ -16,7 +17,7 @@ elf="$out/UnleashedRecomp"
 version="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION}"
 
 icon="UnleashedRecomp/res/switch_icon.jpg"
-[ -f "$icon" ] || icon="$DEVKITPRO/libnx/default_icon.jpg"
+[ -f "$icon" ] || icon="$SWITCH_RUNTIME_ROOT/default_icon.jpg"
 
 "$DEVKITPRO/tools/bin/nacptool" --create "Unleashed Recompiled" "hedge-dev" "$version" "$out/UnleashedRecomp.nacp"
 
