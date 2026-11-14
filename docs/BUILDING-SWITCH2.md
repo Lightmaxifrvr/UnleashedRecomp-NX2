@@ -5,14 +5,18 @@ The Switch 2 build uses `devkitA64` for the compiler and
 Install libnx-ounce into the devkitPro tree so it provides
 `$DEVKITPRO/libounce`, including `switch.specs`, headers, and `lib/libnx.a`.
 
-The existing Switch build inputs and Mesa/NVK driver are still required:
+Build and install OunceVK's Switch 2 portlib into
+`$DEVKITPRO/portlibs/switch2` first. The package must contain
+`lib/libvulkan.a` and `include/vulkan/`.
 
 ```sh
 export DEVKITPRO=/opt/devkitpro
-export NVK_ROOT=/path/to/mesa-switch
+export NVK_ROOT=/path/to/ouncevk
 export SWITCH_PLATFORM=ounce
 tools/build-switch.sh
 ```
+
+`NVK_ROOT` should point directly to the packaged `portlibs/switch2` directory.
 
 `SWITCH_PLATFORM=switch` remains the default and uses the original libnx
 runtime. The Ounce toolchain selects the Switch 2 CPU flags and defines

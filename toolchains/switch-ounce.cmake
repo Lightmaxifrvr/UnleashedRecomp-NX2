@@ -41,6 +41,7 @@ set(CMAKE_CXX_COMPILER_AR "${CMAKE_AR}" CACHE FILEPATH "" FORCE)
 set(CMAKE_CXX_COMPILER_RANLIB "${CMAKE_RANLIB}" CACHE FILEPATH "" FORCE)
 
 set(_SWITCH_RUNTIME_ROOT "${DEVKITPRO}/libounce")
+set(_SWITCH_PORTLIBS_ROOT "${DEVKITPRO}/portlibs/switch2")
 set(_SWITCH_ARCH_FLAGS "-march=armv8.2-a+crc+crypto+pauth -mtune=cortex-a78c -mtp=soft -fPIE -D__SWITCH__ -D__SWITCH2__ -DNX")
 set(_SWITCH_WARNING_FLAGS "-Wno-psabi")
 set(CMAKE_C_FLAGS_INIT "-ffunction-sections -fdata-sections ${_SWITCH_ARCH_FLAGS} ${_SWITCH_WARNING_FLAGS}")
@@ -54,18 +55,21 @@ set(UNLEASHED_RECOMP_SWITCH_RUNTIME_LIBRARY nx CACHE STRING "Switch runtime libr
 include_directories(SYSTEM
   "${_DEVKITA64}/include"
   "${_SWITCH_RUNTIME_ROOT}/include"
+  "${_SWITCH_PORTLIBS_ROOT}/include"
   "${DEVKITPRO}/portlibs/switch/include"
 )
 
 link_directories(
   "${_DEVKITA64}/lib"
   "${_SWITCH_RUNTIME_ROOT}/lib"
+  "${_SWITCH_PORTLIBS_ROOT}/lib"
   "${DEVKITPRO}/portlibs/switch/lib"
 )
 
 set(CMAKE_FIND_ROOT_PATH
   "${_DEVKITA64}"
   "${_SWITCH_RUNTIME_ROOT}"
+  "${_SWITCH_PORTLIBS_ROOT}"
   "${DEVKITPRO}/portlibs/switch"
 )
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)

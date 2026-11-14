@@ -35,7 +35,11 @@ if (UNLEASHED_RECOMP_SWITCH)
         set(UNLEASHED_RECOMP_SWITCH_RUNTIME_ROOT "${DEVKITPRO}/libnx")
     endif()
 
-    set(SWITCH_PORTLIBS_ROOT "${DEVKITPRO}/portlibs/switch")
+    if (UNLEASHED_RECOMP_SWITCH2)
+        set(SWITCH_PORTLIBS_ROOT "${DEVKITPRO}/portlibs/switch2")
+    else()
+        set(SWITCH_PORTLIBS_ROOT "${DEVKITPRO}/portlibs/switch")
+    endif()
     set(SWITCH_PORTLIBS_INCLUDE "${SWITCH_PORTLIBS_ROOT}/include")
     set(SWITCH_PORTLIBS_LIB "${SWITCH_PORTLIBS_ROOT}/lib")
 

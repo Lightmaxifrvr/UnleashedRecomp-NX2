@@ -94,10 +94,15 @@ cd "$root_dir"
 # Accept the Docker build tree, the MSYS2 unified install stage, or an SDK folder. For the SDK
 # layouts NVK_ROOT becomes the portlibs/switch folder, whose include/ has the Vulkan headers.
 NVK_LIB=""
+if [ "$SWITCH_PLATFORM" = "ounce" ] || [ "$SWITCH_PLATFORM" = "switch2" ]; then
+  nvk_portlib_suffix="switch2"
+else
+  nvk_portlib_suffix="switch"
+fi
 for nvk_candidate_root in \
     "$NVK_ROOT" \
-    "$NVK_ROOT/opt/devkitpro/portlibs/switch" \
-    "$NVK_ROOT/mesa-unified-install/opt/devkitpro/portlibs/switch"; do
+    "$NVK_ROOT/opt/devkitpro/portlibs/$nvk_portlib_suffix" \
+    "$NVK_ROOT/mesa-unified-install/opt/devkitpro/portlibs/$nvk_portlib_suffix"; do
   if [ -f "$nvk_candidate_root/lib/libvulkan.a" ]; then
     NVK_ROOT="$nvk_candidate_root"
     NVK_LIB="$nvk_candidate_root/lib/libvulkan.a"
@@ -105,7 +110,11 @@ for nvk_candidate_root in \
   fi
 done
 if [ -z "$NVK_LIB" ]; then
-  NVK_LIB="$NVK_ROOT/builddir-switch/src/nouveau/vulkan/libvulkan.a"
+  if [ "$nvk_portlib_suffix" = "switch2" ]; then
+    NVK_LIB="$NVK_ROOT/build/native-headless/libvulkan.a"
+  else
+    NVK_LIB="$NVK_ROOT/builddir-switch/src/nouveau/vulkan/libvulkan.a"
+  fi
 fi
 DXC_X64="$root_dir/tools/XenosRecomp/thirdparty/dxc-bin/bin/x64"
 
@@ -113,10 +122,14 @@ case "$SWITCH_PLATFORM" in
   switch)
     SWITCH_TOOLCHAIN="toolchains/switch-devkitA64.cmake"
     SWITCH_RUNTIME_ROOT="$DEVKITPRO/libnx"
+    SWITCH_PORTLIBS_ROOT="$DEVKITPRO/portlibs/switch"
+    SWITCH2_CMAKE=OFF
     ;;
   ounce|switch2)
     SWITCH_TOOLCHAIN="toolchains/switch-ounce.cmake"
     SWITCH_RUNTIME_ROOT="$DEVKITPRO/libounce"
+    SWITCH_PORTLIBS_ROOT="$DEVKITPRO/portlibs/switch2"
+    SWITCH2_CMAKE=ON
     ;;
   *)
     echo "Unsupported SWITCH_PLATFORM=$SWITCH_PLATFORM (expected switch or ounce)." >&2
@@ -126,6 +139,10 @@ esac
 
 [ -f "$SWITCH_RUNTIME_ROOT/switch.specs" ] || {
   echo "Switch runtime not found under $SWITCH_RUNTIME_ROOT (missing switch.specs)." >&2
+  exit 2
+}
+[ -f "$SWITCH_PORTLIBS_ROOT/lib/libvulkan.a" ] || {
+  echo "Switch Vulkan portlib not found under $SWITCH_PORTLIBS_ROOT (missing lib/libvulkan.a)." >&2
   exit 2
 }
 [ -f "$SWITCH_RUNTIME_ROOT/lib/libnx.a" ] || {
@@ -139,7 +156,7 @@ log() { echo; echo "==== $* ===="; }
 for f in default.xex default.xexp shader.ar; do
   [ -f "UnleashedRecompLib/private/$f" ] || { echo "Missing UnleashedRecompLib/private/$f (copy from your game dump)." >&2; exit 2; }
 done
-[ -f "$NVK_LIB" ] || { echo "NVK driver not found under NVK_ROOT=$NVK_ROOT (looked for lib/libvulkan.a, opt/devkitpro/portlibs/switch/lib/libvulkan.a, mesa-unified-install/... and builddir-switch/src/nouveau/vulkan/libvulkan.a)." >&2; exit 2; }
+[ -f "$NVK_LIB" ] || { echo "Switch Vulkan driver not found under NVK_ROOT=$NVK_ROOT (expected a packaged portlib with lib/libvulkan.a)." >&2; exit 2; }
 echo "NVK driver: $NVK_LIB"
 [ -z "$SWITCH_SHADER_CACHE_OBJECT" ] || [ -f "$SWITCH_SHADER_CACHE_OBJECT" ] || {
   echo "Shader-cache object not found: $SWITCH_SHADER_CACHE_OBJECT" >&2
@@ -310,6 +327,7 @@ PATH="$DEVKITPRO/devkitA64/bin:$PATH" \
   -DCMAKE_TOOLCHAIN_FILE="$SWITCH_TOOLCHAIN" -DCMAKE_BUILD_TYPE=Release \
   -DDEVKITPRO="$DEVKITPRO" \
   -DUNLEASHED_RECOMP_SWITCH_RUNTIME_ROOT="$SWITCH_RUNTIME_ROOT" \
+  -DUNLEASHED_RECOMP_SWITCH2="$SWITCH2_CMAKE" \
   -DZSTD_BUILD_SHARED=OFF -DZSTD_BUILD_PROGRAMS=OFF \
   -DUNLEASHED_RECOMP_SWITCH=ON \
   -DUNLEASHED_RECOMP_SWITCH_USE_PREGENERATED_SHADERS=ON \
