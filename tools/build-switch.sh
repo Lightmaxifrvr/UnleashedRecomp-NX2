@@ -5,6 +5,8 @@
 #
 # Prerequisites:
 #   - devkitPro + devkitA64            (DEVKITPRO, default /opt/devkitpro)
+#     For Switch 2, install libnx-ounce into DEVKITPRO/libounce and set
+#     SWITCH_PLATFORM=ounce.
 #   - MSYS2 CLANGARM64: clang cmake ninja
 #   - MSYS2 CLANG64:    clang          (only for the x64 shader tool; see NOTE)
 #
@@ -47,6 +49,7 @@
 set -euo pipefail
 
 : "${DEVKITPRO:=/opt/devkitpro}"
+: "${SWITCH_PLATFORM:=switch}"
 # clangarm64 cmake resolves native Windows paths, not the msys /opt mount.
 command -v cygpath >/dev/null 2>&1 && DEVKITPRO="$(cygpath -m "$DEVKITPRO")"
 : "${NVK_ROOT:?Set NVK_ROOT to your mesa-switch build (builddir-switch or mesa-unified-install) or a Mesa Switch SDK folder. See docs/SWITCH-MESA.md.}"
@@ -105,6 +108,30 @@ if [ -z "$NVK_LIB" ]; then
   NVK_LIB="$NVK_ROOT/builddir-switch/src/nouveau/vulkan/libvulkan.a"
 fi
 DXC_X64="$root_dir/tools/XenosRecomp/thirdparty/dxc-bin/bin/x64"
+
+case "$SWITCH_PLATFORM" in
+  switch)
+    SWITCH_TOOLCHAIN="toolchains/switch-devkitA64.cmake"
+    SWITCH_RUNTIME_ROOT="$DEVKITPRO/libnx"
+    ;;
+  ounce|switch2)
+    SWITCH_TOOLCHAIN="toolchains/switch-ounce.cmake"
+    SWITCH_RUNTIME_ROOT="$DEVKITPRO/libounce"
+    ;;
+  *)
+    echo "Unsupported SWITCH_PLATFORM=$SWITCH_PLATFORM (expected switch or ounce)." >&2
+    exit 2
+    ;;
+esac
+
+[ -f "$SWITCH_RUNTIME_ROOT/switch.specs" ] || {
+  echo "Switch runtime not found under $SWITCH_RUNTIME_ROOT (missing switch.specs)." >&2
+  exit 2
+}
+[ -f "$SWITCH_RUNTIME_ROOT/lib/libnx.a" ] || {
+  echo "Switch runtime not found under $SWITCH_RUNTIME_ROOT (missing lib/libnx.a)." >&2
+  exit 2
+}
 
 log() { echo; echo "==== $* ===="; }
 
@@ -270,6 +297,7 @@ bash tools/generate-switch-app-shaders.sh
 # ------------------------------------------------- 6. configure + build the app
 log "6/7 configure + cross-compile the Switch app"
 export DEVKITPRO
+export SWITCH_RUNTIME_ROOT
 shader_cache_cmake_args=()
 if [ -n "$SWITCH_SHADER_CACHE_OBJECT" ]; then
   shader_cache_cmake_args+=("-DUNLEASHED_RECOMP_SWITCH_SHADER_CACHE_OBJECT=$SWITCH_SHADER_CACHE_OBJECT")
@@ -279,8 +307,9 @@ if [ -n "$SWITCH_SHADER_CACHE_OBJECT" ]; then
 fi
 PATH="$DEVKITPRO/devkitA64/bin:$PATH" \
 "$CMAKE" -S . -B build/switch-app -G Ninja \
-  -DCMAKE_TOOLCHAIN_FILE=toolchains/switch-devkitA64.cmake -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE="$SWITCH_TOOLCHAIN" -DCMAKE_BUILD_TYPE=Release \
   -DDEVKITPRO="$DEVKITPRO" \
+  -DUNLEASHED_RECOMP_SWITCH_RUNTIME_ROOT="$SWITCH_RUNTIME_ROOT" \
   -DZSTD_BUILD_SHARED=OFF -DZSTD_BUILD_PROGRAMS=OFF \
   -DUNLEASHED_RECOMP_SWITCH=ON \
   -DUNLEASHED_RECOMP_SWITCH_USE_PREGENERATED_SHADERS=ON \
@@ -312,6 +341,6 @@ fi
 
 # ------------------------------------------------------------------ 7. package
 log "7/7 package NRO"
-DEVKITPRO="$DEVKITPRO" bash tools/package-switch-nro.sh
+DEVKITPRO="$DEVKITPRO" SWITCH_RUNTIME_ROOT="$SWITCH_RUNTIME_ROOT" bash tools/package-switch-nro.sh
 
 echo; echo "==== Switch build complete: dist/switch/UnleashedRecomp.nro ===="

@@ -6,6 +6,7 @@ root_dir="$(cd "${script_dir}/.." && pwd)"
 
 image="${UNLEASHED_SWITCH_DOCKER_IMAGE:-switch-nvk-vulkan:local}"
 jobs="${JOBS:-8}"
+switch_platform="${SWITCH_PLATFORM:-switch}"
 mac_host_build_dir="${UNLEASHED_SWITCH_MAC_HOST_TOOLS_BUILD_DIR:-${root_dir}/build/host-tools-macos}"
 linux_host_build_dir="${UNLEASHED_SWITCH_LINUX_HOST_TOOLS_BUILD_DIR:-/project/build/host-tools}"
 switch_build_dir="${UNLEASHED_SWITCH_BUILD_DIR:-/project/build/switch-app}"
@@ -76,10 +77,19 @@ echo "== Generating app shader headers with macOS DXC =="
 "${root_dir}/tools/generate-switch-app-shaders.sh"
 
 echo "== Building Switch ELF and packaging NRO =="
+if [[ "${switch_platform}" == "ounce" || "${switch_platform}" == "switch2" ]]; then
+  switch_toolchain="/project/toolchains/switch-ounce.cmake"
+  switch_runtime_root="/opt/devkitpro/libounce"
+else
+  switch_toolchain="/project/toolchains/switch-devkitA64.cmake"
+  switch_runtime_root="/opt/devkitpro/libnx"
+fi
 docker run "${docker_args[@]}" "${image}" sh -lc \
   "cmake -S /project -B ${switch_build_dir} \
-    -DCMAKE_TOOLCHAIN_FILE=/project/toolchains/switch-devkitA64.cmake \
+    -DCMAKE_TOOLCHAIN_FILE=${switch_toolchain} \
     -DCMAKE_BUILD_TYPE=Release \
+    -DSWITCH_PLATFORM=${switch_platform} \
+    -DUNLEASHED_RECOMP_SWITCH_RUNTIME_ROOT=${switch_runtime_root} \
     -DUNLEASHED_RECOMP_SWITCH=ON \
     -DUNLEASHED_RECOMP_SWITCH_USE_PREGENERATED_SHADERS=ON \
     -DUNLEASHED_RECOMP_SWITCH_USE_PREGENERATED_APP_SHADERS=ON \

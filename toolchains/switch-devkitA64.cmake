@@ -6,6 +6,7 @@ set(CMAKE_SYSTEM_PROCESSOR aarch64)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 set(UNLEASHED_RECOMP_SWITCH ON CACHE BOOL "Build for Nintendo Switch/libnx")
+set(UNLEASHED_RECOMP_SWITCH2 OFF CACHE BOOL "Build for Nintendo Switch 2/Ounce")
 set(PLUME_PLATFORM_SWITCH ON CACHE BOOL "Build Plume with Nintendo Switch/libnx Vulkan support")
 
 if(NOT DEFINED DEVKITPRO)
@@ -15,6 +16,7 @@ endif()
 set(_DEVKITA64 "${DEVKITPRO}/devkitA64")
 set(_DEVKITA64_BIN "${_DEVKITA64}/bin")
 set(_DEVKITA64_PREFIX "aarch64-none-elf-")
+set(_SWITCH_RUNTIME_ROOT "${DEVKITPRO}/libnx")
 
 if (CMAKE_HOST_WIN32)
   set(_DEVKITA64_SUFFIX ".exe")
@@ -47,6 +49,8 @@ set(CMAKE_CXX_FLAGS_INIT "-ffunction-sections -fdata-sections ${_SWITCH_ARCH_FLA
 # have to tell the linker to take the first definition and move on.
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=${DEVKITPRO}/libnx/switch.specs -Wl,--gc-sections -Wl,--allow-multiple-definition")
 set(CMAKE_DL_LIBS "")
+set(UNLEASHED_RECOMP_SWITCH_RUNTIME_ROOT "${_SWITCH_RUNTIME_ROOT}" CACHE PATH "Switch runtime root")
+set(UNLEASHED_RECOMP_SWITCH_RUNTIME_LIBRARY nx CACHE STRING "Switch runtime library")
 
 include_directories(SYSTEM
   "${_DEVKITA64}/include"
