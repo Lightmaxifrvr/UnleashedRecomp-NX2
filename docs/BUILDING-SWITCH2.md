@@ -10,15 +10,10 @@ Build and install OunceVK's Switch 2 portlib into
 `lib/libvulkan.a` and `include/vulkan/`.
 
 ```sh
-export DEVKITPRO=/opt/devkitpro
-export NVK_ROOT=/path/to/ouncevk
+export DEVKITPRO=/c/devkitPro
 export SWITCH_PLATFORM=ounce
+export NVK_ROOT=/c/devkitPro/portlibs/switch2
+export CLANG64=/c/devkitPro/msys2/clang64/bin
+export SWITCH_NXLINK=1
 tools/build-switch.sh
 ```
-
-`NVK_ROOT` should point directly to the packaged `portlibs/switch2` directory.
-
-`SWITCH_PLATFORM=switch` remains the default and uses the original libnx
-runtime. The Ounce toolchain selects the Switch 2 CPU flags and defines
-`__SWITCH2__`; the application and SDL2 link against the `libnx-ounce`
-runtime without changing the existing Switch 1 path.
