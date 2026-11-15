@@ -1,11 +1,11 @@
 <p align="center">
     <img src="https://raw.githubusercontent.com/hedge-dev/UnleashedRecompResources/refs/heads/main/images/logo/Logo.png" width="512"/>
 </p>
----
+
+
 ## Warning!
 This Port of Sonic Unleashed Recompiled for the Nintendo Switch 2 was made with the use of AI.
 Moreover the FMV's still have some artifacting until i can fix it.
-
 
 ---
 
