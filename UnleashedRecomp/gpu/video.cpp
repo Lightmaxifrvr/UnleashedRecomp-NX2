@@ -4680,6 +4680,21 @@ static void LockTextureRect(GuestTexture* texture, uint32_t, GuestLockedRect* lo
 #if defined(__SWITCH__)
     WaitForPresentTail();
 #endif
+
+    // The render thread copies mappedMemory when it processes the unlock command, which can be later
+    // than the next lock (the game thread runs ahead of it). Movie planes are rewritten every frame,
+    // so without this the copy reads a half-written or not yet decoded frame (green pixels, as an
+    // all-zero YUV value converts to green). Wait until every queued unlock has been copied out.
+    {
+        std::atomic_ref<uint32_t> pending(texture->pendingUnlocks);
+        uint32_t value = pending.load(std::memory_order_acquire);
+        while (value != 0)
+        {
+            pending.wait(value, std::memory_order_acquire);
+            value = pending.load(std::memory_order_acquire);
+        }
+    }
+
     uint32_t pitch = ComputeTexturePitch(texture);
     uint32_t slicePitch = pitch * texture->height;
 
@@ -4697,6 +4712,9 @@ static void UnlockTextureRect(GuestTexture* texture)
     RenderCommand cmd;
     cmd.type = RenderCommandType::UnlockTextureRect;
     cmd.unlockTextureRect.texture = texture;
+
+    std::atomic_ref<uint32_t>(texture->pendingUnlocks).fetch_add(1, std::memory_order_acq_rel);
+
     EnqueueRenderCommand(cmd, true);
 }
 
@@ -4720,6 +4738,13 @@ static void ProcUnlockTextureRect(const RenderCommand& cmd)
 
     auto allocation = g_uploadAllocators[g_frame].allocate(slicePitch, PLACEMENT_ALIGNMENT);
     memcpy(allocation.memory, args.texture->mappedMemory, slicePitch);
+
+    // The guest memory has been copied; the game thread may lock and write the texture again.
+    {
+        std::atomic_ref<uint32_t> pending(args.texture->pendingUnlocks);
+        pending.fetch_sub(1, std::memory_order_acq_rel);
+        pending.notify_all();
+    }
 
     g_commandLists[g_frame]->copyTextureRegion(
         RenderTextureCopyLocation::Subresource(args.texture->texture, 0),
