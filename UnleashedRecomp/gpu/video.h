@@ -156,6 +156,9 @@ struct GuestTexture : GuestBaseTexture
     uint32_t depth = 0;
     RenderTextureViewDimension viewDimension = RenderTextureViewDimension::UNKNOWN;
     void* mappedMemory = nullptr;
+    // Number of UnlockTextureRect commands queued for this texture that the render thread has not
+    // copied out of mappedMemory yet. Accessed through std::atomic_ref.
+    uint32_t pendingUnlocks = 0;
     std::unique_ptr<RenderFramebuffer> framebuffer;
     std::unique_ptr<GuestTexture> patchedTexture;
     std::unique_ptr<GuestTexture> recreatedCubeMapTexture;
