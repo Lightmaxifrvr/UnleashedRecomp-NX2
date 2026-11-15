@@ -1,51 +1,3 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 30eeeea..ce53109 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -140,14 +140,42 @@ if(PLUME_PLATFORM_SWITCH)
-         "${PLUME_LSFG_ROOT}/lsfg-vk-backend/src"
-     )
-     target_compile_features(plume PUBLIC cxx_std_20)
-+
-+    # Libraries the static driver may need besides libnx, zlib and zstd:
-+    #  - expat: Mesa built with xmlconfig (build-unified.sh enables it; the Docker build
-+    #    enables it when devkitPro's switch-libexpat is installed);
-+    #  - drm_nouveau: only older mesa-switch builds used switch-libdrm_nouveau; the current
-+    #    Horizon backend does not. Linked when present, as before.
-+    # Each is linked only if its archive exists; one nobody references adds nothing.
-+    # devkitPro's location: the parent project's DEVKITPRO when it passes one (UnleashedRecomp
-+    # passes the native Windows path), otherwise PLUME_SWITCH_DEVKITPRO.
-+    set(PLUME_SWITCH_PORTLIBS_ROOT "${PLUME_SWITCH_DEVKITPRO}")
-+    if(DEFINED DEVKITPRO AND NOT "${DEVKITPRO}" STREQUAL "")
-+        set(PLUME_SWITCH_PORTLIBS_ROOT "${DEVKITPRO}")
-+    endif()
-+    set(PLUME_SWITCH_NVK_EXTRA_LIBRARIES "")
-+    foreach(PLUME_SWITCH_LIBRARY_NAME IN ITEMS expat drm_nouveau)
-+        foreach(PLUME_SWITCH_LIBRARY_DIR IN ITEMS "${PLUME_SWITCH_NVK_ROOT}/lib" "${PLUME_SWITCH_PORTLIBS_ROOT}/portlibs/switch/lib")
-+            if(EXISTS "${PLUME_SWITCH_LIBRARY_DIR}/lib${PLUME_SWITCH_LIBRARY_NAME}.a")
-+                list(APPEND PLUME_SWITCH_NVK_EXTRA_LIBRARIES "${PLUME_SWITCH_LIBRARY_DIR}/lib${PLUME_SWITCH_LIBRARY_NAME}.a")
-+                break()
-+            endif()
-+        endforeach()
-+    endforeach()
-+    message(STATUS "plume: NVK driver ${PLUME_SWITCH_NVK_LIBRARY}, extra libraries: ${PLUME_SWITCH_NVK_EXTRA_LIBRARIES}")
-+
-+    # One group, so the linker rescans the driver and its dependencies until nothing new
-+    # resolves (the driver and its helper archives reference each other).
-     target_link_libraries(plume PUBLIC
-         "-Wl,-u,vk_icdGetInstanceProcAddr"
-         "-Wl,-u,vk_icdNegotiateLoaderICDInterfaceVersion"
-+        "-Wl,--start-group"
-         "${PLUME_SWITCH_NVK_LIBRARY}"
--        drm_nouveau
-+        ${PLUME_SWITCH_NVK_EXTRA_LIBRARIES}
-         zstd
-         z
-         nx
-+        "-Wl,--end-group"
-     )
- endif()
- 
 diff --git a/plume_render_interface.h b/plume_render_interface.h
 index 8c2d0f5..1e057f0 100644
 --- a/plume_render_interface.h
@@ -999,10 +951,7 @@ index 1e14bf2..1f16ac1 100644
          if (allocator != VK_NULL_HANDLE) {
              vmaDestroyAllocator(allocator);
              allocator = VK_NULL_HANDLE;
-@@ -4756,6 +5236,19 @@ namespace plume {
- 
-         volkLoadInstance(instance);
- 
+@@ -4778,3 +5258,15 @@ namespace plume {
 +#   if defined(__SWITCH__) && !defined(VULKAN_OBJECT_NAMES_ENABLED)
 +        if ((supportedOptionalExtensions.find(VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedOptionalExtensions.end()) && (vkCreateDebugUtilsMessengerEXT != nullptr)) {
 +            VkDebugUtilsMessengerCreateInfoEXT messengerInfo = {};
@@ -1015,7 +964,6 @@ index 1e14bf2..1f16ac1 100644
 +            }
 +        }
 +#   endif
-+
          // Fill capabilities.
          capabilities.shaderFormat = RenderShaderFormat::SPIRV;
  

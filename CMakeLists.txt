@@ -40,6 +40,10 @@ endif()
 # tools/switch-direct-calls.py, which lets GCC inline across recompiled functions at all.
 option(UNLEASHED_RECOMP_SWITCH_LTO "Build the Switch NRO with link-time optimisation." OFF)
 set(UNLEASHED_RECOMP_SWITCH_LTO_JOBS "2" CACHE STRING "Parallel LTRANS jobs for the Switch LTO link.")
+option(UNLEASHED_RECOMP_SWITCH_NXLINK "Connect Switch stdout/stderr to the nxlink host at startup." OFF)
+if (UNLEASHED_RECOMP_SWITCH AND UNLEASHED_RECOMP_SWITCH_NXLINK)
+    add_compile_definitions(UNLEASHED_RECOMP_SWITCH_NXLINK)
+endif()
 
 if (UNLEASHED_RECOMP_SWITCH AND UNLEASHED_RECOMP_SWITCH_LTO)
     message(STATUS "Switch LTO enabled (${UNLEASHED_RECOMP_SWITCH_LTO_JOBS} jobs)")

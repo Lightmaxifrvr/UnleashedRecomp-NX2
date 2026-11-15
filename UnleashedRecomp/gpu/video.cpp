@@ -201,7 +201,15 @@ namespace plume
 
     static std::unique_ptr<RenderInterface> CreateVulkanInterfaceWrapper() {
 #if defined(__SWITCH__)
+#if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video Vulkan wrapper start\n");
+        fflush(stderr);
+#endif
         const auto userPath = GetUserPath();
+#if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video Vulkan wrapper after user path\n");
+        fflush(stderr);
+#endif
         SwitchFrameGenerationConfig frameGeneration;
         frameGeneration.enabled = Config::FrameGeneration;
         frameGeneration.shaderPath = (userPath / "lsfg" / "Lossless.dll").string();
@@ -254,9 +262,17 @@ namespace plume
 
         // Driver switches that have their own [Switch] option. SwitchMesaEnvironment, applied next,
         // overrides any of them.
+#if !defined(__SWITCH2__)
         if (Config::SwitchZcullGreater)
             setenv("NVK_ZCULL", "greater", 1);
+#endif
+#if defined(__SWITCH2__)
+        // OunceVK/NVK can mis-link a small subset of shader interpolants, producing
+        // isolated geometry-colored artifacts. Keep this optimization opt-in on Switch 2.
+        setenv("NVK_LINK_VARYINGS", "0", 1);
+#else
         setenv("NVK_LINK_VARYINGS", Config::SwitchLinkVaryings ? "1" : "0", 1);
+#endif
 
         // [Switch] SwitchMesaEnvironment = "NAME=value;NAME=value": driver switches such as the
         // nfsmw-nx ones (NVK_SWITCH_DIBUJO, NVK_SWITCH_DYN_UBO_DELTA, NVK_COPY_ENGINE,
@@ -285,9 +301,27 @@ namespace plume
         }
 #endif
 #ifdef SDL_VULKAN_ENABLED
-        return CreateVulkanInterface(GameWindow::s_renderWindow);
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video before Vulkan interface\n");
+        fflush(stderr);
+#endif
+        auto interface = CreateVulkanInterface(GameWindow::s_renderWindow);
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video after Vulkan interface ptr=%p\n", interface.get());
+        fflush(stderr);
+#endif
+        return interface;
 #else
-        return CreateVulkanInterface();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video before Vulkan interface\n");
+        fflush(stderr);
+#endif
+        auto interface = CreateVulkanInterface();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video after Vulkan interface ptr=%p\n", interface.get());
+        fflush(stderr);
+#endif
+        return interface;
 #endif
     }
 }
@@ -3832,6 +3866,10 @@ static void ApplyLowEndDefaults()
 
 bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
 {
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] video before render settings\n");
+    fflush(stderr);
+#endif
 #if defined(__SWITCH__)
     // Before the first render command: the batches' producer must not change while commands are queued.
     g_renderQueueTokenEnabled = Config::SwitchRenderQueueToken;
@@ -3848,7 +3886,15 @@ bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
     ImGui::CreateContext();
     ImPlot::CreateContext();
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] video before window init\n");
+    fflush(stderr);
+#endif
     GameWindow::Init(sdlVideoDriver);
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] video after window init\n");
+    fflush(stderr);
+#endif
 
 #ifdef UNLEASHED_RECOMP_D3D12
     g_vulkan = DetectWine() || Config::GraphicsAPI == EGraphicsAPI::Vulkan;
@@ -3881,18 +3927,30 @@ bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
     {
         RenderInterfaceFunction* interfaceFunction = interfaceFunctions[i];
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video before interface %u\n", static_cast<unsigned>(i));
+        fflush(stderr);
+#endif
 #ifdef UNLEASHED_RECOMP_D3D12
         // Wrap the device creation in __try/__except to survive from driver crashes.
         __try
 #endif
         {
             g_interface = interfaceFunction();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+            fprintf(stderr, "[boot] video after interface %u ptr=%p\n", static_cast<unsigned>(i), g_interface.get());
+            fflush(stderr);
+#endif
             if (g_interface == nullptr)
             {
                 continue;
             }
 
             g_device = g_interface->createDevice(Config::GraphicsDevice);
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+            fprintf(stderr, "[boot] video after device %u ptr=%p\n", static_cast<unsigned>(i), g_device.get());
+            fflush(stderr);
+#endif
             if (g_device != nullptr)
             {
                 const RenderDeviceDescription &deviceDescription = g_device->getDescription();
@@ -3972,6 +4030,10 @@ bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
 
     if (g_device == nullptr)
     {
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] video no device\n");
+        fflush(stderr);
+#endif
         return false;
     }
 

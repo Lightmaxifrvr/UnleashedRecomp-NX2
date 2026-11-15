@@ -36,6 +36,10 @@
 #include <mod/mod_loader.h>
 #include <preload_executable.h>
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+#include <switch.h>
+#endif
+
 #ifdef _WIN32
 #include <timeapi.h>
 #endif
@@ -69,6 +73,18 @@ void HostStartup()
 // Name inspired from nt's entry point
 void KiSystemStartup()
 {
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] guest memory state: base=%p reason=%s result=0x%08X hints=%d/%d/%d/%d heapFallback=%d\n",
+        g_memory.base,
+        g_memory.switchInitFailureReason ? g_memory.switchInitFailureReason : "none",
+        g_memory.switchInitResult,
+        envIsSyscallHinted(0x74),
+        envIsSyscallHinted(0x75),
+        envIsSyscallHinted(0x77),
+        envIsSyscallHinted(0x78),
+        g_memory.switchUsingHeapFallback);
+    fflush(stderr);
+#endif
     if (g_memory.base == nullptr)
     {
 #if defined(__SWITCH__)
@@ -93,11 +109,23 @@ void KiSystemStartup()
             g_memory.switchCommitFailureMemoryPerm,
             g_memory.switchCommitFailurePageInfo);
 #endif
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] guest memory unavailable before error dialog\n");
+        fflush(stderr);
+#endif
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, GameWindow::GetTitle(), Localise("System_MemoryAllocationFailed").c_str(), GameWindow::s_pWindow);
         std::_Exit(1);
     }
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before guest heap\n");
+    fflush(stderr);
+#endif
     g_userHeap.Init();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after guest heap\n");
+    fflush(stderr);
+#endif
 
     const auto gameContent = XamMakeContent(XCONTENTTYPE_RESERVED, "Game");
     const auto updateContent = XamMakeContent(XCONTENTTYPE_RESERVED, "Update");
@@ -230,6 +258,14 @@ void init()
 
 int main(int argc, char *argv[])
 {
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    // Connect before any startup code so failures before the file logger is configured are visible.
+    if (R_SUCCEEDED(socketInitializeDefault()))
+        nxlinkStdioForDebug();
+    fprintf(stderr, "[boot] entered main\n");
+    fflush(stderr);
+#endif
+
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
@@ -241,13 +277,29 @@ int main(int argc, char *argv[])
     setenv("MESA_VK_ENABLE_SUBMIT_THREAD", "1", 1);
 #endif
 
+ #if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before CheckConsole\n");
+    fflush(stderr);
+ #endif
     os::process::CheckConsole();
 
+ #if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before registry\n");
+    fflush(stderr);
+ #endif
     if (!os::registry::Init())
         LOGN_WARNING("OS does not support registry.");
 
+ #if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before logger\n");
+    fflush(stderr);
+ #endif
     os::logger::Init();
 
+ #if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before preload\n");
+    fflush(stderr);
+ #endif
     PreloadContext preloadContext;
     preloadContext.PreloadExecutable();
 
@@ -282,6 +334,10 @@ int main(int argc, char *argv[])
         std::filesystem::current_path(os::process::GetExecutableRoot(), ec);
     }
 
+ #if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before config\n");
+    fflush(stderr);
+ #endif
     Config::Load();
 
 #if defined(__SWITCH__)
@@ -312,9 +368,25 @@ int main(int argc, char *argv[])
     // crash.log on a CPU exception or a lost GPU, whatever SwitchLog says (os/switch/crash_switch.cpp).
     os::switch_crash::Init(Config::SwitchLog);
 
+ #if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after crash init\n");
+    fflush(stderr);
+ #endif
     os::switch_cpu_profiler::RegisterCurrentThread("main");
+ #if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after profiler registration\n");
+    fflush(stderr);
+ #endif
     os::switch_cpu_profiler::Start(Config::SwitchCpuProfiler);
+ #if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after profiler start\n");
+    fflush(stderr);
+ #endif
     os::switch_stall_watch::Start(Config::SwitchStallWatchSeconds);
+ #if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after stall watch\n");
+    fflush(stderr);
+ #endif
 
     // [Switch] SwitchRelaxedAtomics: read by every guest atomic from now on (no guest code has run yet).
     // SwitchNativeRtti, SwitchNativeShaderConstants: read by those hooks (misc_impl.cpp), also from now on.
@@ -340,10 +412,24 @@ int main(int argc, char *argv[])
     if (Config::SwitchHandheldGpuBoost)
         os::switch_perf::StartHandheldGpuBoost();
 
+ #if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before optional services end\n");
+    fflush(stderr);
+ #endif
+ #if !defined(__SWITCH2__)
     if (Config::SwitchOverlayFps)
         os::switch_overlay::Start();
+ #endif
+ #if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after optional services\n");
+    fflush(stderr);
+ #endif
 #endif
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before update check\n");
+    fflush(stderr);
+#endif
     if (forceInstallationCheck)
     {
         // Create the console to show progress to the user, otherwise it will seem as if the game didn't boot at all.
@@ -416,19 +502,47 @@ int main(int argc, char *argv[])
     double timeDifferenceSeconds = difftime(timeNow, Config::LastChecked);
     if (timeDifferenceSeconds > TimeBetweenUpdateChecksInSeconds)
     {
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] before update checker\n");
+        fflush(stderr);
+#endif
         UpdateChecker::initialize();
         UpdateChecker::start();
         Config::LastChecked = timeNow;
         Config::Save();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] after update checker\n");
+        fflush(stderr);
+#endif
     }
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before show console\n");
+    fflush(stderr);
+#endif
     if (Config::ShowConsole)
         os::process::ShowConsole();
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before host startup\n");
+    fflush(stderr);
+#endif
     HostStartup();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after host startup\n");
+    fflush(stderr);
+#endif
 
     std::filesystem::path modulePath;
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before install check\n");
+    fflush(stderr);
+#endif
     bool isGameInstalled = Installer::checkGameInstall(GetGamePath(), modulePath);
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after install check\n");
+    fflush(stderr);
+#endif
     bool runInstallerWizard = forceInstaller || forceDLCInstaller || !isGameInstalled;
 
     if (runInstallerWizard)
@@ -454,26 +568,66 @@ int main(int argc, char *argv[])
         }
     }
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before mod loader\n");
+    fflush(stderr);
+#endif
     ModLoader::Init();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after mod loader\n");
+    fflush(stderr);
+#endif
 
     if (!PersistentStorageManager::LoadBinary())
         LOGFN_ERROR("Failed to load persistent storage binary... (status code {})", (int)PersistentStorageManager::BinStatus);
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before guest memory startup\n");
+    fflush(stderr);
+#endif
     KiSystemStartup();
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after guest memory startup\n");
+    fflush(stderr);
+#endif
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before module load\n");
+    fflush(stderr);
+#endif
     uint32_t entry = LdrLoadModule(modulePath);
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] after module load\n");
+    fflush(stderr);
+#endif
 
     if (!runInstallerWizard)
     {
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] before host device\n");
+        fflush(stderr);
+#endif
         if (!Video::CreateHostDevice(sdlVideoDriver, graphicsApiRetry))
         {
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, GameWindow::GetTitle(), Localise("Video_BackendError").c_str(), GameWindow::s_pWindow);
             std::_Exit(1);
         }
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+        fprintf(stderr, "[boot] after host device\n");
+        fflush(stderr);
+#endif
     }
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before pipeline precompilation\n");
+    fflush(stderr);
+#endif
     Video::StartPipelinePrecompilation();
 
+#if defined(__SWITCH__) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
+    fprintf(stderr, "[boot] before guest thread\n");
+    fflush(stderr);
+#endif
     GuestThread::Start({ entry, 0, 0 });
 
     return 0;
