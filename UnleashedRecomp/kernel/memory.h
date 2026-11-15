@@ -82,6 +82,7 @@ struct Memory
     uint32_t switchInitResult{};
     const char* switchInitFailureReason{"not started"};
     bool switchUsingAliasBaseFallback{};
+    bool switchUsingHeapFallback{};
 #endif
 };
 

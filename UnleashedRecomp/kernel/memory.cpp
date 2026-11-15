@@ -179,61 +179,77 @@ Memory::Memory()
 
     if (!HasSwitchProcessMemorySyscalls())
     {
+#if defined(__SWITCH2__)
+        // KaiHEN does not expose the privileged process-memory SVCs to an NRO.
+        // Ounce's large heap is the only writable fallback available to this
+        // contiguous 32-bit guest address space.
+        base = static_cast<uint8_t*>(calloc(1, PPC_MEMORY_SIZE));
+        if (base == nullptr)
+        {
+            switchInitFailureReason = "Switch 2 guest heap allocation failed";
+            return;
+        }
+
+        switchUsingHeapFallback = true;
+#else
         switchInitFailureReason = "process memory syscalls are not hinted";
         return;
+#endif
     }
-
-    virtmemLock();
-    base = static_cast<uint8_t*>(virtmemFindAslr(PPC_MEMORY_SIZE, SWITCH_PAGE_SIZE));
-    if (base != nullptr)
-        reservation = virtmemAddReservation(base, PPC_MEMORY_SIZE);
-    virtmemUnlock();
-
-    if (base == nullptr)
+    else
     {
-        switchInitFailureReason = "virtmemFindAslr 4GB window failed";
-        return;
-    }
+        virtmemLock();
+        base = static_cast<uint8_t*>(virtmemFindAslr(PPC_MEMORY_SIZE, SWITCH_PAGE_SIZE));
+        if (base != nullptr)
+            reservation = virtmemAddReservation(base, PPC_MEMORY_SIZE);
+        virtmemUnlock();
 
-    switchSelectedBase = reinterpret_cast<uintptr_t>(base);
+        if (base == nullptr)
+        {
+            switchInitFailureReason = "virtmemFindAslr 4GB window failed";
+            return;
+        }
 
-    if (reservation == nullptr)
-    {
-        switchInitFailureReason = "virtmemAddReservation failed";
-        base = nullptr;
-        return;
-    }
+        switchSelectedBase = reinterpret_cast<uintptr_t>(base);
 
-    try
-    {
-        committedPages.assign(PPC_MEMORY_SIZE / SWITCH_PAGE_SIZE, 0);
-    }
-    catch (...)
-    {
-        switchInitFailureReason = "committed page table allocation failed";
-        base = nullptr;
-        return;
-    }
+        if (reservation == nullptr)
+        {
+            switchInitFailureReason = "virtmemAddReservation failed";
+            base = nullptr;
+            return;
+        }
 
-    if (!CommitRange(SWITCH_PAGE_SIZE, SWITCH_LOW_MEMORY_COMMIT_END - SWITCH_PAGE_SIZE))
-    {
-        switchInitFailureReason = "initial low memory commit failed";
-        base = nullptr;
-        return;
-    }
+        try
+        {
+            committedPages.assign(PPC_MEMORY_SIZE / SWITCH_PAGE_SIZE, 0);
+        }
+        catch (...)
+        {
+            switchInitFailureReason = "committed page table allocation failed";
+            base = nullptr;
+            return;
+        }
 
-    if (!CommitRange(PPC_IMAGE_BASE, imageAndLookupSize))
-    {
-        switchInitFailureReason = "initial image/lookup commit failed";
-        base = nullptr;
-        return;
-    }
+        if (!CommitRange(SWITCH_PAGE_SIZE, SWITCH_LOW_MEMORY_COMMIT_END - SWITCH_PAGE_SIZE))
+        {
+            switchInitFailureReason = "initial low memory commit failed";
+            base = nullptr;
+            return;
+        }
 
-    if (!CommitRange(SWITCH_XMAIO_BEGIN, SWITCH_XMAIO_SIZE))
-    {
-        switchInitFailureReason = "initial XMA IO commit failed";
-        base = nullptr;
-        return;
+        if (!CommitRange(PPC_IMAGE_BASE, imageAndLookupSize))
+        {
+            switchInitFailureReason = "initial image/lookup commit failed";
+            base = nullptr;
+            return;
+        }
+
+        if (!CommitRange(SWITCH_XMAIO_BEGIN, SWITCH_XMAIO_SIZE))
+        {
+            switchInitFailureReason = "initial XMA IO commit failed";
+            base = nullptr;
+            return;
+        }
     }
 
     switchInitFailureReason = nullptr;
@@ -264,6 +280,11 @@ bool Memory::CommitRange(size_t offset, size_t size) noexcept
 
     if (offset >= PPC_MEMORY_SIZE || size > PPC_MEMORY_SIZE - offset)
         return false;
+
+#if defined(__SWITCH2__)
+    if (switchUsingHeapFallback)
+        return true;
+#endif
 
     const size_t begin = AlignDown(offset, SWITCH_PAGE_SIZE);
     const size_t end = AlignUp(offset + size, SWITCH_PAGE_SIZE);

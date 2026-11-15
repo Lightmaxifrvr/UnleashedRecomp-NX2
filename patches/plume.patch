@@ -2,11 +2,12 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 6a7645a..30eeeea 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -13,8 +13,16 @@ string(COMPARE EQUAL ${CMAKE_SYSTEM_NAME} "Linux" IS_LINUX)
+@@ -13,8 +13,17 @@ string(COMPARE EQUAL ${CMAKE_SYSTEM_NAME} "Linux" IS_LINUX)
  include(CMakeDependentOption)
  cmake_dependent_option(SDL_VULKAN_ENABLED "Enable SDL Vulkan integration" OFF IS_LINUX OFF)
  cmake_dependent_option(D3D12_AGILITY_SDK_ENABLED "Enable D3D12 Agility SDK" OFF WIN32 OFF)
 +option(PLUME_PLATFORM_SWITCH "Enable Nintendo Switch/libnx Vulkan integration" OFF)
++option(PLUME_SWITCH_OUNCEVK "Use the OunceVK static Vulkan library" OFF)
  option(PLUME_BUILD_EXAMPLES "Build example applications" OFF)
  
 +if(PLUME_PLATFORM_SWITCH)
@@ -51,7 +52,7 @@ index 6a7645a..30eeeea 100644
  # Create target
  add_library(plume STATIC ${PLUME_SOURCES})
  
-@@ -93,6 +119,38 @@ if(D3D12_AGILITY_SDK_ENABLED)
+@@ -93,6 +119,52 @@ if(D3D12_AGILITY_SDK_ENABLED)
      target_link_libraries(plume PRIVATE Microsoft::DirectX-Headers Microsoft::DirectX-Guids Microsoft::DirectX12-Agility)
  endif()
  
@@ -64,6 +65,9 @@ index 6a7645a..30eeeea 100644
 +        NX
 +        VK_USE_PLATFORM_VI_NN
 +    )
++    if(PLUME_SWITCH_OUNCEVK)
++        target_compile_definitions(plume PUBLIC PLUME_SWITCH_OUNCEVK)
++    endif()
 +    target_include_directories(plume PUBLIC
 +        "${PLUME_SWITCH_NVK_ROOT}/include"
 +        "${PLUME_SWITCH_DEVKITPRO}/libnx/include"
@@ -76,14 +80,25 @@ index 6a7645a..30eeeea 100644
 +        "${PLUME_LSFG_ROOT}/lsfg-vk-backend/src"
 +    )
 +    target_compile_features(plume PUBLIC cxx_std_20)
++    set(PLUME_SWITCH_NVK_EXTRA_LIBRARIES "")
++    foreach(PLUME_SWITCH_LIBRARY_NAME IN ITEMS expat drm_nouveau)
++        foreach(PLUME_SWITCH_LIBRARY_DIR IN ITEMS "${PLUME_SWITCH_NVK_ROOT}/lib" "${PLUME_SWITCH_DEVKITPRO}/portlibs/switch/lib")
++            if(EXISTS "${PLUME_SWITCH_LIBRARY_DIR}/lib${PLUME_SWITCH_LIBRARY_NAME}.a")
++                list(APPEND PLUME_SWITCH_NVK_EXTRA_LIBRARIES "${PLUME_SWITCH_LIBRARY_DIR}/lib${PLUME_SWITCH_LIBRARY_NAME}.a")
++                break()
++            endif()
++        endforeach()
++    endforeach()
 +    target_link_libraries(plume PUBLIC
-+        "-Wl,-u,vk_icdGetInstanceProcAddr"
-+        "-Wl,-u,vk_icdNegotiateLoaderICDInterfaceVersion"
 +        "${PLUME_SWITCH_NVK_LIBRARY}"
-+        drm_nouveau
++        $<$<NOT:$<BOOL:${PLUME_SWITCH_OUNCEVK}>>:-Wl,-u,vk_icdGetInstanceProcAddr>
++        $<$<NOT:$<BOOL:${PLUME_SWITCH_OUNCEVK}>>:-Wl,-u,vk_icdNegotiateLoaderICDInterfaceVersion>
++        "-Wl,--start-group"
++        ${PLUME_SWITCH_NVK_EXTRA_LIBRARIES}
 +        zstd
 +        z
 +        nx
++        "-Wl,--end-group"
 +    )
 +endif()
 +
@@ -94,11 +109,14 @@ diff --git a/plume_render_interface.h b/plume_render_interface.h
 index 1c69c35..8c2d0f5 100644
 --- a/plume_render_interface.h
 +++ b/plume_render_interface.h
-@@ -12,6 +12,18 @@
+@@ -12,6 +12,21 @@
  #include "plume_render_interface_types.h"
  
  namespace plume {
 +#if defined(__SWITCH__)
++    void SetSwitchDriverMessageCallback(void (*callback)(const char *message));
++    void SetSwitchDeviceLostCallback(void (*callback)(const char *call));
++
 +    struct SwitchFrameGenerationConfig {
 +        bool enabled = false;
 +        std::string shaderPath;
@@ -144,7 +162,7 @@ diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
 index 9103ca8..1e14bf2 100644
 --- a/plume_vulkan.cpp
 +++ b/plume_vulkan.cpp
-@@ -13,8 +13,21 @@
+@@ -13,8 +13,49 @@
  #include <algorithm>
  #include <cmath>
  #include <climits>
@@ -157,10 +175,38 @@ index 9103ca8..1e14bf2 100644
 +#include <cstdlib>
 +#include <filesystem>
 +
++#if !defined(PLUME_SWITCH_OUNCEVK)
 +extern "C" {
 +    VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(VkInstance instance, const char *pName);
 +    VKAPI_ATTR VkResult VKAPI_CALL vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *pSupportedVersion);
 +}
++#endif
++#endif
++
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK)
++static PFN_vkCreateAccelerationStructureKHR ounce_vkCreateAccelerationStructureKHR;
++static PFN_vkDestroyAccelerationStructureKHR ounce_vkDestroyAccelerationStructureKHR;
++static PFN_vkGetAccelerationStructureBuildSizesKHR ounce_vkGetAccelerationStructureBuildSizesKHR;
++static PFN_vkCmdBuildAccelerationStructuresKHR ounce_vkCmdBuildAccelerationStructuresKHR;
++static PFN_vkCreateRayTracingPipelinesKHR ounce_vkCreateRayTracingPipelinesKHR;
++static PFN_vkCmdTraceRaysKHR ounce_vkCmdTraceRaysKHR;
++static PFN_vkGetRayTracingShaderGroupHandlesKHR ounce_vkGetRayTracingShaderGroupHandlesKHR;
++static PFN_vkWaitForPresentKHR ounce_vkWaitForPresentKHR;
++static PFN_vkGetRefreshCycleDurationGOOGLE ounce_vkGetRefreshCycleDurationGOOGLE;
++static PFN_vkCreateDebugUtilsMessengerEXT ounce_vkCreateDebugUtilsMessengerEXT;
++static PFN_vkDestroyDebugUtilsMessengerEXT ounce_vkDestroyDebugUtilsMessengerEXT;
++
++#define vkCreateAccelerationStructureKHR ounce_vkCreateAccelerationStructureKHR
++#define vkDestroyAccelerationStructureKHR ounce_vkDestroyAccelerationStructureKHR
++#define vkGetAccelerationStructureBuildSizesKHR ounce_vkGetAccelerationStructureBuildSizesKHR
++#define vkCmdBuildAccelerationStructuresKHR ounce_vkCmdBuildAccelerationStructuresKHR
++#define vkCreateRayTracingPipelinesKHR ounce_vkCreateRayTracingPipelinesKHR
++#define vkCmdTraceRaysKHR ounce_vkCmdTraceRaysKHR
++#define vkGetRayTracingShaderGroupHandlesKHR ounce_vkGetRayTracingShaderGroupHandlesKHR
++#define vkWaitForPresentKHR ounce_vkWaitForPresentKHR
++#define vkGetRefreshCycleDurationGOOGLE ounce_vkGetRefreshCycleDurationGOOGLE
++#define vkCreateDebugUtilsMessengerEXT ounce_vkCreateDebugUtilsMessengerEXT
++#define vkDestroyDebugUtilsMessengerEXT ounce_vkDestroyDebugUtilsMessengerEXT
 +#endif
 +
  #if DLSS_ENABLED
@@ -514,11 +560,43 @@ index 9103ca8..1e14bf2 100644
          // Retrieve the information for the queue families.
          uint32_t queueFamilyCount = 0;
          vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-@@ -4398,11 +4624,26 @@ namespace plume {
+@@ -3989,9 +4126,21 @@ namespace plume {
+         VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+             fprintf(stderr, "vkCreateDevice failed with error code 0x%X.\n", res);
+             return;
+         }
+ 
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK)
++        ounce_vkCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(vk, "vkCreateAccelerationStructureKHR"));
++        ounce_vkDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(vk, "vkDestroyAccelerationStructureKHR"));
++        ounce_vkGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(vk, "vkGetAccelerationStructureBuildSizesKHR"));
++        ounce_vkCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(vk, "vkCmdBuildAccelerationStructuresKHR"));
++        ounce_vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(vk, "vkCreateRayTracingPipelinesKHR"));
++        ounce_vkCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(vk, "vkCmdTraceRaysKHR"));
++        ounce_vkGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(vk, "vkGetRayTracingShaderGroupHandlesKHR"));
++        ounce_vkWaitForPresentKHR = reinterpret_cast<PFN_vkWaitForPresentKHR>(vkGetDeviceProcAddr(vk, "vkWaitForPresentKHR"));
++        ounce_vkGetRefreshCycleDurationGOOGLE = reinterpret_cast<PFN_vkGetRefreshCycleDurationGOOGLE>(vkGetDeviceProcAddr(vk, "vkGetRefreshCycleDurationGOOGLE"));
++#endif
++
+         for (uint32_t i = 0; i < queueFamilyCount; i++) {
+             for (uint32_t j = 0; j < queueFamilies[i].queues.size(); j++) {
+                 vkGetDeviceQueue(vk, i, j, &queueFamilies[i].queues[j].vk);
+@@ -4398,11 +4636,36 @@ namespace plume {
  #else
      VulkanInterface::VulkanInterface() {
  #endif
-+#if defined(__SWITCH__)
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK)
++#if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
++        fprintf(stderr, "[boot] plume before OunceVK direct Vulkan\n");
++        fflush(stderr);
++#endif
++        VkResult res = VK_SUCCESS;
++#if defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
++        fprintf(stderr, "[boot] plume after OunceVK direct Vulkan\n");
++        fflush(stderr);
++#endif
++#elif defined(__SWITCH__)
 +        uint32_t icdVersion = 7;
 +        vk_icdNegotiateLoaderICDInterfaceVersion(&icdVersion);
 +
@@ -541,7 +619,7 @@ index 9103ca8..1e14bf2 100644
  
          appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
          appInfo.pApplicationName = "plume";
-@@ -4417,7 +4658,7 @@ namespace plume {
+@@ -4417,11 +4658,23 @@ namespace plume {
          createInfo.ppEnabledLayerNames = nullptr;
          createInfo.enabledLayerCount = 0;
  
@@ -549,6 +627,41 @@ index 9103ca8..1e14bf2 100644
 +#   if defined(__APPLE__) && !defined(__SWITCH__)
          createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
  #   endif
+ 
+-        // Check for extensions.
+-        uint32_t extensionCount;
+-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
++        // Check for extensions.
++        uint32_t extensionCount = 0;
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
++        fprintf(stderr, "[boot] plume extension function=%p\n", reinterpret_cast<void *>(vkEnumerateInstanceExtensionProperties));
++        fflush(stderr);
++#endif
++        res = vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK) && defined(UNLEASHED_RECOMP_SWITCH_NXLINK)
++        fprintf(stderr, "[boot] plume extension count result=0x%08X count=%u\n", res, extensionCount);
++        fflush(stderr);
++#endif
++        if (res != VK_SUCCESS) {
++            fprintf(stderr, "vkEnumerateInstanceExtensionProperties failed with error code 0x%X.\n", res);
++            return;
++        }
+ 
+@@ -4514,7 +4663,14 @@ namespace plume {
+         }
+ 
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK)
++        ounce_vkCreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
++        ounce_vkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
++#endif
++
+-        volkLoadInstance(instance);
++#if !defined(__SWITCH__) || !defined(PLUME_SWITCH_OUNCEVK)
++        volkLoadInstance(instance);
++#endif
+ 
+         // Fill capabilities.
+         capabilities.shaderFormat = RenderShaderFormat::SPIRV;
  
 diff --git a/plume_vulkan.h b/plume_vulkan.h
 index 73022bb..a1d0ad5 100644
@@ -568,7 +681,24 @@ index 73022bb..a1d0ad5 100644
  #define VK_USE_PLATFORM_WIN32_KHR
  #elif defined(__ANDROID__)
  #define VK_USE_PLATFORM_ANDROID_KHR
-@@ -41,6 +46,10 @@
+@@ -31,11 +31,15 @@
+ // For VK_KHR_portability_subset
+ #define VK_ENABLE_BETA_EXTENSIONS
+ 
+-#include <volk.h>
++#if defined(__SWITCH__) && defined(PLUME_SWITCH_OUNCEVK)
++#include <vulkan/vulkan.h>
++#else
++#include <volk.h>
++#endif
+ 
+ #ifdef __clang__
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wnullability-completeness"
+ #endif
+ 
+ #include <vk_mem_alloc.h>
+@@ -41,6 +45,14 @@
  #pragma clang diagnostic pop
  #endif
  
@@ -577,6 +707,10 @@ index 73022bb..a1d0ad5 100644
 +#endif
 +
  namespace plume {
++#if defined(__SWITCH__)
++    void SetSwitchDriverMessageCallback(void (*callback)(const char *message));
++    void SetSwitchDeviceLostCallback(void (*callback)(const char *call));
++#endif
      struct VulkanCommandQueue;
      struct VulkanDevice;
 @@ -226,7 +235,7 @@ namespace plume {

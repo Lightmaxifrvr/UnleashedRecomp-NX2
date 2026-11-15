@@ -335,6 +335,7 @@ PATH="$DEVKITPRO/devkitA64/bin:$PATH" \
   -DUNLEASHED_RECOMP_HOST_X_DECOMPRESS="$root_dir/build/host-tools/tools/x_decompress/x_decompress.exe" \
   -DUNLEASHED_RECOMP_HOST_XENON_RECOMP="$root_dir/build/host-tools/tools/XenonRecomp/XenonRecomp/XenonRecomp.exe" \
   -DPLUME_PLATFORM_SWITCH=ON -DPLUME_SWITCH_NVK_ROOT="$NVK_ROOT" -DPLUME_SWITCH_NVK_LIBRARY="$NVK_LIB" \
+  -DPLUME_SWITCH_OUNCEVK="$SWITCH2_CMAKE" \
   -DUNLEASHED_RECOMP_SWITCH_LTO="$([ "$SWITCH_LTO" = "1" ] && echo ON || echo OFF)" \
   -DUNLEASHED_RECOMP_SWITCH_LTO_JOBS="$SWITCH_LTO_JOBS" \
   -DUNLEASHED_RECOMP_SWITCH_PGO="$SWITCH_PGO" \
@@ -343,6 +344,7 @@ PATH="$DEVKITPRO/devkitA64/bin:$PATH" \
   -DUNLEASHED_RECOMP_SWITCH_O2="$([ "$SWITCH_O2" = "1" ] && echo ON || echo OFF)" \
   -DUNLEASHED_RECOMP_SWITCH_IPA_PTA="$([ "$SWITCH_IPA_PTA" = "1" ] && echo ON || echo OFF)" \
   -DUNLEASHED_RECOMP_SWITCH_CLASSIC_CODEGEN="$([ "$SWITCH_CLASSIC_CODEGEN" = "1" ] && echo ON || echo OFF)" \
+  -DUNLEASHED_RECOMP_SWITCH_NXLINK="$([ "${SWITCH_NXLINK:-0}" = "1" ] && echo ON || echo OFF)" \
   -DUNLEASHED_RECOMP_SWITCH_BUILD_ID="$SWITCH_BUILD_ID" \
   "${shader_cache_cmake_args[@]}" \
   -DCMAKE_MAKE_PROGRAM="$NINJA"
