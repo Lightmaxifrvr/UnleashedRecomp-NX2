@@ -1,12 +1,12 @@
-[submodule "tools/XenonRecomp"]
-	path = tools/XenonRecomp
-	url = https://github.com/hedge-dev/XenonRecomp.git
+#[submodule "tools/XenonRecomp"]
+#	path = tools/XenonRecomp
+#	url = https://github.com/hedge-dev/XenonRecomp.git
 [submodule "thirdparty/ddspp"]
 	path = thirdparty/ddspp
 	url = https://github.com/redorav/ddspp.git
-[submodule "tools/XenosRecomp"]
-	path = tools/XenosRecomp
-	url = https://github.com/hedge-dev/XenosRecomp.git
+#[submodule "tools/XenosRecomp"]
+#	path = tools/XenosRecomp
+#	url = https://github.com/hedge-dev/XenosRecomp.git
 [submodule "UnleashedRecompResources"]
 	path = UnleashedRecompResources
 	url = https://github.com/hedge-dev/UnleashedRecompResources.git
@@ -22,27 +22,27 @@
 [submodule "thirdparty/stb"]
 	path = thirdparty/stb
 	url = https://github.com/nothings/stb.git
-[submodule "thirdparty/concurrentqueue"]
-	path = thirdparty/concurrentqueue
-	url = https://github.com/cameron314/concurrentqueue.git
+#[submodule "thirdparty/concurrentqueue"]
+#	path = thirdparty/concurrentqueue
+#	url = https://github.com/cameron314/concurrentqueue.git
 [submodule "thirdparty/magic_enum"]
 	path = thirdparty/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
 [submodule "thirdparty/nativefiledialog-extended"]
 	path = thirdparty/nativefiledialog-extended
 	url = https://github.com/btzy/nativefiledialog-extended.git
-[submodule "thirdparty/imgui"]
-	path = thirdparty/imgui
-	url = https://github.com/ocornut/imgui.git
+#[submodule "thirdparty/imgui"]
+#	path = thirdparty/imgui
+#	url = https://github.com/ocornut/imgui.git
 [submodule "thirdparty/unordered_dense"]
 	path = thirdparty/unordered_dense
 	url = https://github.com/martinus/unordered_dense.git
 [submodule "thirdparty/SDL_mixer"]
 	path = thirdparty/SDL_mixer
 	url = https://github.com/libsdl-org/SDL_mixer
-[submodule "thirdparty/implot"]
-	path = thirdparty/implot
-	url = https://github.com/epezent/implot.git
+#[submodule "thirdparty/implot"]
+#	path = thirdparty/implot
+#	url = https://github.com/epezent/implot.git
 [submodule "thirdparty/json"]
 	path = thirdparty/json
 	url = https://github.com/nlohmann/json
@@ -55,6 +55,6 @@
 [submodule "thirdparty/MoltenVK/SPIRV-Cross"]
 	path = thirdparty/MoltenVK/SPIRV-Cross
 	url = https://github.com/KhronosGroup/SPIRV-Cross.git
-[submodule "thirdparty/plume"]
-	path = thirdparty/plume
-	url = https://github.com/renderbag/plume.git
+#[submodule "thirdparty/plume"]
+#	path = thirdparty/plume
+#	url = https://github.com/renderbag/plume.git
